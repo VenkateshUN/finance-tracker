@@ -1,0 +1,149 @@
+import psycopg2
+import psycopg2.extras
+import uuid
+import os
+from datetime import date
+
+# --- DATABASE CONNECTION ---
+# It's recommended to use environment variables for connection details in a real application
+DB_NAME = os.environ.get("DB_NAME", "finance tracker")
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "2121")
+DB_HOST = os.environ.get("DB_HOST", "localhost")
+DB_PORT = os.environ.get("DB_PORT", "5432")
+
+def get_db_connection():
+    """Establishes a connection to the PostgreSQL database."""
+    try:
+        conn = psycopg2.connect(
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            port=DB_PORT
+        )
+        return conn
+    except psycopg2.OperationalError as e:
+        print(f"Error connecting to the database: {e}")
+        return None
+
+def setup_database():
+    """Sets up the database table if it doesn't exist."""
+    conn = get_db_connection()
+    if conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                transaction_id VARCHAR(255) PRIMARY KEY,
+                transaction_date DATE NOT NULL,
+                description TEXT,
+                amount DECIMAL(10, 2) NOT NULL,
+                type VARCHAR(20) CHECK (type IN ('Revenue', 'Expense'))
+            );
+            """)
+            conn.commit()
+        conn.close()
+
+# --- CRUD OPERATIONS ---
+
+# CREATE
+def add_transaction(transaction_date: date, description: str, amount: float, trans_type: str):
+    """Adds a new transaction to the database."""
+    conn = get_db_connection()
+    if conn:
+        with conn.cursor() as cur:
+            transaction_id = str(uuid.uuid4())
+            cur.execute(
+                """
+                INSERT INTO transactions (transaction_id, transaction_date, description, amount, type)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (transaction_id, transaction_date, description, amount, trans_type)
+            )
+            conn.commit()
+        conn.close()
+
+# READ
+def get_transactions(filter_type: str = 'All', sort_by: str = 'transaction_date', sort_order: str = 'DESC'):
+    """
+    Retrieves transactions from the database with optional filtering and sorting.
+    Returns a list of dictionaries.
+    """
+    conn = get_db_connection()
+    if not conn:
+        return []
+
+    query = "SELECT transaction_id, transaction_date, description, amount, type FROM transactions"
+
+    # Handle filtering
+    if filter_type != 'All':
+        query += f" WHERE type = '{filter_type}'"
+
+    # Handle sorting
+    # Basic validation to prevent SQL injection on column names
+    valid_sort_columns = ['transaction_date', 'amount']
+    if sort_by not in valid_sort_columns:
+        sort_by = 'transaction_date' # Default sort column
+
+    valid_sort_orders = ['ASC', 'DESC']
+    if sort_order.upper() not in valid_sort_orders:
+        sort_order = 'DESC' # Default sort order
+
+    query += f" ORDER BY {sort_by} {sort_order.upper()}"
+
+    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute(query)
+        transactions = [dict(row) for row in cur.fetchall()]
+    conn.close()
+    return transactions
+
+# DELETE
+def delete_transaction(transaction_id: str):
+    """Deletes a transaction from the database by its ID."""
+    conn = get_db_connection()
+    if conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM transactions WHERE transaction_id = %s",
+                (transaction_id,)
+            )
+            conn.commit()
+        conn.close()
+
+# --- BUSINESS INSIGHTS & AGGREGATIONS ---
+
+def get_financial_summary():
+    """
+    Calculates key financial metrics from the transactions table.
+    """
+    conn = get_db_connection()
+    if not conn:
+        return {
+            "total_transactions": 0,
+            "total_revenue": 0,
+            "total_expense": 0,
+            "net_income": 0
+        }
+
+    summary = {}
+    with conn.cursor() as cur:
+        # COUNT: Total number of transactions
+        cur.execute("SELECT COUNT(*) FROM transactions")
+        summary['total_transactions'] = cur.fetchone()[0]
+
+        # SUM: Total Revenue
+        cur.execute("SELECT SUM(amount) FROM transactions WHERE type = 'Revenue'")
+        total_revenue = cur.fetchone()[0]
+        summary['total_revenue'] = total_revenue or 0
+
+        # SUM: Total Expense
+        cur.execute("SELECT SUM(amount) FROM transactions WHERE type = 'Expense'")
+        total_expense = cur.fetchone()[0]
+        summary['total_expense'] = total_expense or 0
+
+    conn.close()
+
+    # Calculate Net Income
+    summary['net_income'] = summary['total_revenue'] - summary['total_expense']
+
+    return summary
