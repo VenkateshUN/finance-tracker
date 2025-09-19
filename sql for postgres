@@ -1,0 +1,59 @@
+-- Drop the table if it exists to start fresh (optional)
+DROP TABLE IF EXISTS transactions;
+
+-- Create the main transactions table as defined in your Python application
+CREATE TABLE transactions (
+    transaction_id VARCHAR(255) PRIMARY KEY,
+    transaction_date DATE NOT NULL,
+    description TEXT,
+    amount DECIMAL(10, 2) NOT NULL,
+    type VARCHAR(20) CHECK (type IN ('Revenue', 'Expense'))
+);
+
+-- Insert sample data into the transactions table
+-- REVENUE DATA
+INSERT INTO transactions (transaction_id, transaction_date, description, amount, type) VALUES
+('a1b2c3d4-0001-4001-a001-12345678901a', '2024-05-10', 'Payment from ClientCorp for Project Alpha', 5000.00, 'Revenue'),
+('a1b2c3d4-0002-4002-a002-12345678901b', '2024-05-15', 'Sale of Product #XYZ-100', 450.50, 'Revenue'),
+('a1b2c3d4-0003-4003-a003-12345678901c', '2024-05-22', 'Consulting services for Innovate Inc.', 2500.00, 'Revenue'),
+('a1b2c3d4-0004-4004-a004-12345678901d', '2024-06-05', 'Payment from TechGiant for Q2 services', 12000.00, 'Revenue'),
+('a1b2c3d4-0005-4005-a005-12345678901e', '2024-06-18', 'Online store sales (Week 1)', 1250.75, 'Revenue'),
+('a1b2c3d4-0006-4006-a006-12345678901f', '2024-06-25', 'Ad revenue share from partner', 350.00, 'Revenue');
+
+-- EXPENSE DATA
+INSERT INTO transactions (transaction_id, transaction_date, description, amount, type) VALUES
+('e1f2g3h4-0001-5001-b001-9876543210a1', '2024-05-01', 'Monthly office rent', 2200.00, 'Expense'),
+('e1f2g3h4-0002-5002-b002-9876543210a2', '2024-05-05', 'Annual subscription for accounting software', 600.00, 'Expense'),
+('e1f2g3h4-0003-5003-b003-9876543210a3', '2024-05-12', 'Office supplies (paper, pens, etc.)', 125.50, 'Expense'),
+('e1f2g3h4-0004-5004-b004-9876543210a4', '2024-05-20', 'Marketing campaign on social media', 850.00, 'Expense'),
+('e1f2g3h4-0005-5005-b005-9876543210a5', '2024-05-28', 'Monthly employee salaries', 15000.00, 'Expense'),
+('e1f2g3h4-0006-5006-b006-9876543210a6', '2024-06-01', 'Monthly office rent', 2200.00, 'Expense'),
+('e1f2g3h4-0007-5007-b007-9876543210a7', '2024-06-10', 'Cloud server hosting fees', 300.00, 'Expense'),
+('e1f2g3h4-0008-5008-b008-9876543210a8', '2024-06-15', 'New office chairs purchase', 750.00, 'Expense'),
+('e1f2g3h4-0009-5009-b009-9876543210a9', '2024-06-28', 'Monthly employee salaries', 15500.00, 'Expense');
+
+
+-- --- OPTIONAL SCHEMA EXTENSION ---
+
+-- Drop the table if it exists
+DROP TABLE IF EXISTS transaction_categories;
+
+-- This is a second table to categorize transactions.
+-- To use this, you would add a 'category_id' foreign key to your 'transactions' table.
+CREATE TABLE transaction_categories (
+    category_id SERIAL PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    category_type VARCHAR(20) CHECK (category_type IN ('Revenue', 'Expense'))
+);
+
+-- Insert sample categories
+INSERT INTO transaction_categories (category_name, category_type) VALUES
+('Client Project Payment', 'Revenue'),
+('Product Sale', 'Revenue'),
+('Consulting Fee', 'Revenue'),
+('Office Rent', 'Expense'),
+('Software Subscription', 'Expense'),
+('Marketing', 'Expense'),
+('Salaries', 'Expense'),
+('Utilities', 'Expense'),
+('Office Supplies', 'Expense');
