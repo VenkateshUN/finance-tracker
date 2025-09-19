@@ -1,0 +1,144 @@
+# finance-trackerimport streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# Import backend functions
+import backend as be
+
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="Finance Tracker",
+    page_icon="💰",
+    layout="wide"
+)
+
+# --- DATABASE INITIALIZATION ---
+# This will create the table if it doesn't exist on first run
+be.setup_database()
+
+# --- STYLING ---
+st.markdown("""
+<style>
+    .stMetric {
+        border: 1px solid #2e3b4e;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .stMetric > div:nth-child(2) > div:nth-child(1) {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 10px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# --- MAIN APPLICATION ---
+st.title("💰 Finance: Revenue & Expense Tracker")
+st.markdown("Monitor your business's financial health with this simple tracker.")
+
+# --- BUSINESS INSIGHTS SECTION ---
+st.header("Financial Overview")
+
+summary = be.get_financial_summary()
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        label="Total Transactions",
+        value=summary['total_transactions']
+    )
+with col2:
+    st.metric(
+        label="Total Revenue",
+        value=f"${summary['total_revenue']:,.2f}",
+        delta_color="normal"
+    )
+with col3:
+    st.metric(
+        label="Total Expenses",
+        value=f"${summary['total_expense']:,.2f}",
+        delta_color="inverse"
+    )
+with col4:
+    net_income_delta = summary['net_income']
+    st.metric(
+        label="Net Income",
+        value=f"${summary['net_income']:,.2f}",
+        delta=f"{net_income_delta:,.2f}",
+        delta_color="normal" if net_income_delta >= 0 else "inverse"
+    )
+
+st.markdown("---")
+
+# --- INTERACTIVE SECTIONS (in columns) ---
+col_add, col_delete = st.columns(2)
+
+# --- ADD TRANSACTION ---
+with col_add:
+    st.subheader("📝 Add a New Transaction")
+    with st.form("add_transaction_form", clear_on_submit=True):
+        transaction_date = st.date_input("Date", datetime.now())
+        trans_type = st.selectbox("Type", ["Revenue", "Expense"])
+        amount = st.number_input("Amount", min_value=0.01, format="%.2f")
+        description = st.text_area("Description")
+        submitted = st.form_submit_button("Add Transaction")
+
+        if submitted:
+            be.add_transaction(transaction_date, description, amount, trans_type)
+            st.success("Transaction added successfully!")
+            st.rerun()
+
+# --- DELETE TRANSACTION ---
+with col_delete:
+    st.subheader("🗑️ Delete a Transaction")
+    transactions_for_delete = be.get_transactions()
+    if transactions_for_delete:
+        # Create a display string for each transaction
+        transaction_options = {
+            f"{t['transaction_date']} - {t['type']} - ${t['amount']:,.2f} - {t['description'][:20]}...": t['transaction_id']
+            for t in transactions_for_delete
+        }
+        selected_display = st.selectbox("Select a transaction to delete", options=transaction_options.keys())
+        
+        if st.button("Delete Selected Transaction", type="primary"):
+            transaction_id_to_delete = transaction_options[selected_display]
+            be.delete_transaction(transaction_id_to_delete)
+            st.success("Transaction deleted successfully!")
+            st.rerun()
+    else:
+        st.info("No transactions to delete.")
+
+
+st.markdown("---")
+
+
+# --- VIEW & FILTER TRANSACTIONS ---
+st.header("🔍 View All Transactions")
+
+filter_col1, filter_col2, filter_col3 = st.columns(3)
+with filter_col1:
+    filter_type = st.selectbox("Filter by Type", ["All", "Revenue", "Expense"])
+with filter_col2:
+    sort_by = st.selectbox("Sort by", ["transaction_date", "amount"])
+with filter_col3:
+    sort_order = st.radio("Order", ["DESC", "ASC"], horizontal=True)
+
+
+# READ: Fetch and display transactions
+transactions = be.get_transactions(filter_type, sort_by, sort_order)
+
+if transactions:
+    df = pd.DataFrame(transactions)
+    # Format columns for better display
+    df['amount'] = df['amount'].apply(lambda x: f"${float(x):,.2f}")
+    df['transaction_date'] = pd.to_datetime(df['transaction_date']).dt.strftime('%Y-%m-%d')
+    
+    st.dataframe(df, use_container_width=True, hide_index=True)
+else:
+    st.info("No transactions found. Add one using the form above!")
